@@ -36,6 +36,13 @@ function sha256(value) {
   return crypto.createHash('sha256').update(value).digest('hex');
 }
 
+/** Valida se parece um email real (tem @ e domínio com ponto) */
+function isValidEmail(value) {
+  if (!value || typeof value !== 'string') return false;
+  const trimmed = value.trim().toLowerCase();
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed);
+}
+
 /** Últimos N dígitos de uma string (para log seguro) */
 function lastDigits(str, n = 4) {
   return '****' + str.slice(-n);
@@ -77,8 +84,9 @@ app.post('/purchase', async (req, res) => {
     userData.fn = [sha256(firstName)];
   }
 
-  // Email → se o fluxo coletar no futuro
-  if (email && String(email).trim()) {
+  // Email → valida antes de usar (ignora "não tenho email", textos livres, etc.)
+  const emailValid = isValidEmail(email);
+  if (emailValid) {
     userData.em = [sha256(String(email).trim().toLowerCase())];
   }
 
@@ -100,7 +108,8 @@ app.post('/purchase', async (req, res) => {
     access_token: CAPI_TOKEN
   };
 
-  console.log(`[${new Date().toISOString()}] Enviando Purchase | phone: ${lastDigits(normalizedPhone)} | name: ${name || 'N/A'} | value: R$${saleValue} | event_id: ${eventId}`);
+  const emailLog = emailValid ? `✓ ${email.trim()}` : (email ? `✗ inválido (${email.trim()})` : 'N/A');
+  console.log(`[${new Date().toISOString()}] Enviando Purchase | phone: ${lastDigits(normalizedPhone)} | name: ${name || 'N/A'} | email: ${emailLog} | value: R$${saleValue} | event_id: ${eventId}`);
 
   try {
     const response = await fetch(CAPI_URL, {
