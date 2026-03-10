@@ -4,7 +4,9 @@ const fetch = require('node-fetch');
 const { v4: uuidv4 } = require('uuid');
 
 const app = express();
-app.use(express.json());
+// type: '*/*' → parseia como JSON independente do Content-Type enviado
+app.use(express.json({ type: '*/*' }));
+app.use(express.urlencoded({ extended: true }));
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 const PIXEL_ID      = process.env.PIXEL_ID      || '1867026417263870';
