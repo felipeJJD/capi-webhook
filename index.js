@@ -46,7 +46,7 @@ app.get('/health', (req, res) => {
 });
 
 app.post('/purchase', async (req, res) => {
-  const { phone } = req.body || {};
+  const { phone, name, email, value } = req.body || {};
 
   if (!phone) {
     return res.status(400).json({ success: false, error: 'Campo "phone" é obrigatório.' });
@@ -59,9 +59,29 @@ app.post('/purchase', async (req, res) => {
     return res.status(400).json({ success: false, error: 'Telefone inválido.' });
   }
 
-  const hashedPhone  = sha256(normalizedPhone);
-  const eventId      = uuidv4();
-  const eventTime    = Math.floor(Date.now() / 1000);
+  const hashedPhone = sha256(normalizedPhone);
+  const eventId     = uuidv4();
+  const eventTime   = Math.floor(Date.now() / 1000);
+
+  // ─── user_data: quanto mais campos, maior o EMQ (Event Match Quality) ───
+  const userData = {
+    ph:      [hashedPhone],
+    country: [sha256('br')],   // Brasil fixo — sempre ajuda o match
+  };
+
+  // Nome do WhatsApp → extrai primeiro nome
+  if (name && String(name).trim()) {
+    const firstName = String(name).trim().split(' ')[0].toLowerCase();
+    userData.fn = [sha256(firstName)];
+  }
+
+  // Email → se o fluxo coletar no futuro
+  if (email && String(email).trim()) {
+    userData.em = [sha256(String(email).trim().toLowerCase())];
+  }
+
+  // Valor da venda → usa parâmetro ou fallback do env (R$49 padrão)
+  const saleValue = value ? parseFloat(value) : EVENT_VALUE;
 
   const payload = {
     data: [{
@@ -69,18 +89,16 @@ app.post('/purchase', async (req, res) => {
       event_time:    eventTime,
       action_source: 'other',
       event_id:      eventId,
-      user_data: {
-        ph: [hashedPhone]
-      },
+      user_data:     userData,
       custom_data: {
-        value:    EVENT_VALUE,
+        value:    saleValue,
         currency: EVENT_CURRENCY
       }
     }],
     access_token: CAPI_TOKEN
   };
 
-  console.log(`[${new Date().toISOString()}] Enviando Purchase | phone: ${lastDigits(normalizedPhone)} | event_id: ${eventId}`);
+  console.log(`[${new Date().toISOString()}] Enviando Purchase | phone: ${lastDigits(normalizedPhone)} | name: ${name || 'N/A'} | value: R$${saleValue} | event_id: ${eventId}`);
 
   try {
     const response = await fetch(CAPI_URL, {
